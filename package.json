@@ -1,0 +1,52 @@
+{
+  "name": "zalo-linux-unofficial",
+  "productName": "Zalo",
+  "version": "25.5.2",
+  "description": "Unofficial Linux port of the Zalo desktop client",
+  "main": "app/bootstrap.js",
+  "homepage": "https://github.com/lcaohoanq/zalo-linux-unofficial",
+  "author": {
+    "name": "Zalo Linux Unofficial contributors",
+    "email": "lcaohoanq@users.noreply.github.com"
+  },
+  "desktopName": "Zalo",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "check:version": "node scripts/check-version.mjs",
+    "predist:linux": "npm run check:version",
+    "dist:linux": "electron-builder --linux AppImage deb --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "22.3.27",
+    "electron-builder": "26.16.1"
+  },
+  "build": {
+    "appId": "com.github.lcaohoanq.zalo-linux-unofficial",
+    "productName": "Zalo",
+    "executableName": "zalo",
+    "asar": false,
+    "directories": {
+      "app": ".",
+      "output": "dist"
+    },
+    "files": [
+      "app/**/*",
+      "assets/Zalo.png"
+    ],
+    "linux": {
+      "artifactName": "Zalo-${version}-linux-x64.${ext}",
+      "category": "Network;InstantMessaging",
+      "icon": "assets/Zalo.png",
+      "syncDesktopName": true,
+      "synopsis": "Unofficial Zalo desktop client for Linux",
+      "description": "An unofficial Linux port of the Zalo macOS desktop client."
+    },
+    "deb": {
+      "priority": "optional"
+    }
+  }
+}
