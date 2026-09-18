@@ -1,7 +1,7 @@
 {
   "name": "zalo-linux-unofficial",
   "productName": "Zalo",
-  "version": "25.5.2",
+  "version": "1.0.0",
   "description": "Unofficial Linux port of the Zalo desktop client",
   "main": "app/bootstrap.js",
   "homepage": "https://github.com/lcaohoanq/zalo-linux-unofficial",
