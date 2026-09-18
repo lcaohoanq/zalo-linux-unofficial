@@ -40,6 +40,34 @@ doing so can create duplicate desktop menu entries.
 
 The installer is user-local and does not use `sudo` or install system packages.
 
+### Native module compatibility
+
+The application bundle was extracted from the macOS client. The Linux port can
+start without loading every native module, but the repository currently ships
+no Linux ELF `.node` or `.so` binaries. The statuses below describe the
+vendored modules in `app/native/nativelibs`, not general Electron support for
+the corresponding feature.
+
+| Module API | Feature | Linux x86_64 (glibc) | Linux x86_64 (musl) | Linux arm64 | Behaviour when used on Linux |
+| --- | --- | --- | --- | --- | --- |
+| `fileUtils()` | Native file utilities | Fallback only | Fallback only | Fallback only | Loads an `{ error: "not support" }` object; no native operations are available. |
+| `sqlite3()` | SQLite binding | Unsupported | Unsupported | Unsupported | Throws `MODULE_NOT_FOUND`; only macOS x64 and arm64 N-API v6 binaries are bundled. |
+| `dbUtils()` | Native database utilities | Unsupported | Unsupported | Unsupported | The loader falls through to a missing Windows prebuild and throws `MODULE_NOT_FOUND`. |
+| `v8Profiles()` | V8 CPU profiling | Unsupported | Unsupported | Unsupported | Attempts to load the bundled macOS binary and fails with `ERR_DLOPEN_FAILED`. |
+| `zimage()` | Image thumbnail and resize operations | Fallback only | Fallback only | Fallback only | Returns a rejected promise with error code `-2` (`NOT_SUPPORT`). |
+| `zjxl()` | JPEG XL conversion and resize operations | Fallback only | Fallback only | Fallback only | Loads an `{ error: "not support" }` object; the bundled addon and libraries are macOS-only. |
+| `zwalker()` | Message-storage file scanning and cleanup | Unsupported | Unsupported | Unsupported | The generated loader recognises Linux targets, but no Linux binary or platform package is bundled, so loading throws `MODULE_NOT_FOUND`. |
+| `zfile()` | Fast file metadata, disk info, and folder copy | Partial fallback | Partial fallback | Partial fallback | Loads no-op `stat`, `diskInfo`, and `statFolder` functions; copy and permission APIs are absent. |
+| `zcall()` | Native audio/video calls | Unsupported | Unsupported | Unsupported | The binding returns an unsupported marker, then module initialisation throws because `MainApp` is unavailable. |
+| `winUtils()` | Windows integration | Unsupported | Unsupported | Unsupported | The exported loader points to a directory that is not included in the bundle. |
+| `zaloLogger()` | Application logging | Supported (JavaScript) | Supported (JavaScript) | Supported (JavaScript) | Works without a native binary; included here because it is exposed by the same module registry. |
+
+`Fallback only` means the module can be imported without immediately crashing,
+not that its native feature works. `Unsupported` means callers must avoid the
+module or catch the load failure. The released AppImage and DEB remain x86_64
+only; the arm64 column records module readiness and does not imply that an arm64
+package is available.
+
 ### Install
 
 ```bash
