@@ -1,19 +1,38 @@
-### Zalo for Linux (Unofficial Port)
-#### Information
---
-THIS IS NOT USING THE ZALO WEBSITE,IT IS PORTED DIRECTLY FROM THE ZALO MAC DESKTOP CLIENT</br>
-This project is an unofficial port of the MacOS version of Zalo to Linux. The porting process involved extracting the `.dmg` file from the MacOS version and locating the `app.asar` file in the directory, which is typically found in `/Applications/YourAppName.app/Contents/Resource`
+# Zalo for Linux (Unofficial Port)
 
-### Installc
-Run command below
+This project is an unofficial Linux port of the Zalo macOS desktop client. It
+runs the extracted desktop application with Electron; it is not a wrapper for
+the Zalo website.
+
+## Requirements
+
+- Linux x86_64
+- `unzip`, `sha256sum`, and `awk`
+- Either `curl` or `wget`
+
+The installer is user-local and does not use `sudo` or install system packages.
+
+## Install
+
 ```bash
-git clone https://github.com/ducseul/zalo-linux-unofficial.git && cd zalo-linux-unofficial && bash install.sh
+git clone https://github.com/ducseul/zalo-linux-unofficial.git
+cd zalo-linux-unofficial
+./install.sh
 ```
 
-#### Uninstall
-Run command below for uninstall Zalo
+Zalo is installed under `${XDG_DATA_HOME:-$HOME/.local/share}/Zalo` and can be
+started from the desktop application menu. Closing its main window keeps it
+available from the native system tray.
+
+## Uninstall
+
 ```bash
-/home/bug/.local/share/Zalo/uninstall.sh
+"${XDG_DATA_HOME:-$HOME/.local/share}/Zalo/uninstall.sh"
 ```
 
-> Credit: The project get inspired by https://github.com/realdtn2/zalo-linux-unofficial-2024. You can check it out.
+Uninstalling removes the application files and desktop entry but preserves Zalo
+account and message data.
+
+## Credit
+
+Inspired by [realdtn2/zalo-linux-unofficial-2024](https://github.com/realdtn2/zalo-linux-unofficial-2024).

@@ -1,84 +1,146 @@
+#!/usr/bin/env bash
 
-#!/bin/bash
+set -Eeuo pipefail
 
-# Exit on error
-set -e
-
-# Variables
 APP_NAME="Zalo"
-INSTALL_DIR="$HOME/.local/share/$APP_NAME"
-DESKTOP_FILE="$HOME/.local/share/applications/${APP_NAME}.desktop"
-ICON_PATH="$INSTALL_DIR/assets/Zalo.png"
-START_SCRIPT="$INSTALL_DIR/start.sh"
-TMP_DIR="/tmp/zalo-installer"
-VENV_DIR="$INSTALL_DIR/venv"
+ELECTRON_VERSION="v22.3.27"
+SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+INSTALL_DIR="$DATA_HOME/$APP_NAME"
+APPLICATIONS_DIR="$DATA_HOME/applications"
+DESKTOP_FILE="$APPLICATIONS_DIR/$APP_NAME.desktop"
 
-# Step 1: Install dependencies
-echo "Installing Python3, pip, pystray, and Pillow..."
-if command -v apt &>/dev/null; then # Debian/Ubuntu
-    sudo apt update
-    sudo apt install -y python3 python3-pip python3-venv unzip wget
-elif command -v dnf &>/dev/null; then  # Fedora/RHEL/CentOS
-    sudo dnf install -y python3 python3-pip python3-virtualenv unzip wget
-elif command -v pacman &>/dev/null; then  # Arch Linux
-    sudo pacman -Sy --noconfirm python python-pip python-virtualenv unzip wget
-else
-    echo "Unsupported package manager. Install Python 3, pip, python3-venv, unzip, and wget manually."
+TMP_DIR=""
+STAGE_DIR=""
+BACKUP_DIR=""
+DESKTOP_TMP=""
+INSTALLED_NEW=0
+
+cleanup() {
+    local status=$?
+
+    [[ -z "$DESKTOP_TMP" ]] || rm -f -- "$DESKTOP_TMP"
+    [[ -z "$TMP_DIR" ]] || rm -rf -- "$TMP_DIR"
+    [[ -z "$STAGE_DIR" ]] || rm -rf -- "$STAGE_DIR"
+
+    if (( status != 0 )); then
+        if (( INSTALLED_NEW == 1 )); then
+            rm -rf -- "$INSTALL_DIR"
+        fi
+        if [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]]; then
+            mv -- "$BACKUP_DIR" "$INSTALL_DIR"
+        fi
+    elif [[ -n "$BACKUP_DIR" ]]; then
+        rm -rf -- "$BACKUP_DIR"
+    fi
+
+    exit "$status"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "Error: $*" >&2
     exit 1
+}
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || fail "required command '$1' was not found."
+}
+
+download() {
+    local url=$1
+    local destination=$2
+
+    if command -v curl >/dev/null 2>&1; then
+        curl --fail --location --show-error --output "$destination" "$url"
+    else
+        wget --output-document="$destination" "$url"
+    fi
+}
+
+desktop_quote() {
+    local value=$1
+    value=${value//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//\`/\\\`}
+    value=${value//\$/\\\$}
+    value=${value//%/%%}
+    printf '"%s"' "$value"
+}
+
+[[ "$DATA_HOME" == /* ]] || fail "XDG_DATA_HOME must be an absolute path."
+[[ "$(uname -s)" == "Linux" ]] || fail "this installer supports Linux only."
+case "$(uname -m)" in
+    x86_64|amd64) ELECTRON_ARCH="x64" ;;
+    *) fail "unsupported architecture '$(uname -m)'; only Linux x86_64 is supported." ;;
+esac
+
+require_command unzip
+require_command sha256sum
+require_command awk
+if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+    fail "install either 'curl' or 'wget' and run the installer again."
 fi
 
-# Step 1.1: Create virtual environment and install Python packages
-echo "Creating virtual environment and installing Python packages..."
-python3 -m venv "$VENV_DIR"
-"$VENV_DIR/bin/pip" install pystray pillow
+mkdir -p -- "$DATA_HOME" "$APPLICATIONS_DIR"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/zalo-installer.XXXXXX")"
+STAGE_DIR="$(mktemp -d "$DATA_HOME/.Zalo.install.XXXXXX")"
 
-# Step 2: Create install directory and copy files
-echo "Copying files to $INSTALL_DIR..."
-mkdir -p "$INSTALL_DIR"
-cp -r ./* "$INSTALL_DIR"
+ELECTRON_ZIP="electron-${ELECTRON_VERSION}-linux-${ELECTRON_ARCH}.zip"
+RELEASE_URL="https://github.com/electron/electron/releases/download/${ELECTRON_VERSION}"
 
-# Step 2.1: Download and extract Electron
-echo "Downloading Electron..."
-mkdir -p "$TMP_DIR"
-ELECTRON_VERSION="v22.3.27"
-ELECTRON_ZIP="electron-${ELECTRON_VERSION}-linux-x64.zip"
-ELECTRON_URL="https://github.com/electron/electron/releases/download/${ELECTRON_VERSION}/${ELECTRON_ZIP}"
+echo "Downloading Electron ${ELECTRON_VERSION}..."
+download "$RELEASE_URL/$ELECTRON_ZIP" "$TMP_DIR/$ELECTRON_ZIP"
+download "$RELEASE_URL/SHASUMS256.txt" "$TMP_DIR/SHASUMS256.txt"
 
-wget "$ELECTRON_URL" -P "$TMP_DIR"
-unzip "$TMP_DIR/$ELECTRON_ZIP" -d "$TMP_DIR/electron"
-rm "$TMP_DIR/$ELECTRON_ZIP"
-cp -r "$TMP_DIR/electron" "$INSTALL_DIR/electron"
-chmod +x "$INSTALL_DIR/electron/electron"
+echo "Verifying Electron download..."
+awk -v file="$ELECTRON_ZIP" \
+    '$2 == file || $2 == "*" file { print; found=1 } END { exit !found }' \
+    "$TMP_DIR/SHASUMS256.txt" > "$TMP_DIR/checksum"
+(
+    cd -- "$TMP_DIR"
+    sha256sum --check --status checksum
+) || fail "Electron checksum verification failed."
 
-# Step 2.2: Update start.sh to use virtual environment
-echo "Updating start script to use virtual environment..."
-cat <<EOF > "$START_SCRIPT"
-#!/bin/bash
-cd "$INSTALL_DIR"
-source "$VENV_DIR/bin/activate"
-python3 main.py
-EOF
+echo "Preparing application files..."
+cp -a -- "$SOURCE_DIR/app" "$STAGE_DIR/app"
+cp -a -- "$SOURCE_DIR/assets" "$STAGE_DIR/assets"
+cp -a -- "$SOURCE_DIR/uninstall.sh" "$STAGE_DIR/uninstall.sh"
+cp -a -- "$SOURCE_DIR/version" "$STAGE_DIR/version"
+mkdir -p -- "$STAGE_DIR/electron"
+unzip -q "$TMP_DIR/$ELECTRON_ZIP" -d "$STAGE_DIR/electron"
+chmod +x "$STAGE_DIR/electron/electron" "$STAGE_DIR/uninstall.sh"
 
-# Step 3: Create desktop shortcut
-echo "Creating desktop shortcut..."
-mkdir -p "$(dirname "$DESKTOP_FILE")"
-cat <<EOF > "$DESKTOP_FILE"
+if [[ -e "$INSTALL_DIR" ]]; then
+    BACKUP_DIR="$(mktemp -d "$DATA_HOME/.Zalo.backup.XXXXXX")"
+    rmdir -- "$BACKUP_DIR"
+    mv -- "$INSTALL_DIR" "$BACKUP_DIR"
+fi
+mv -- "$STAGE_DIR" "$INSTALL_DIR"
+STAGE_DIR=""
+INSTALLED_NEW=1
+
+ELECTRON_EXEC="$(desktop_quote "$INSTALL_DIR/electron/electron")"
+APP_ARGUMENT="$(desktop_quote "$INSTALL_DIR/app")"
+DESKTOP_TMP="$(mktemp "$APPLICATIONS_DIR/.Zalo.desktop.XXXXXX")"
+cat > "$DESKTOP_TMP" <<EOF
 [Desktop Entry]
 Name=$APP_NAME
-Comment=Launch $APP_NAME
-Exec=bash $START_SCRIPT
-Icon=$ICON_PATH
+Comment=Zalo desktop client for Linux
+Exec=$ELECTRON_EXEC $APP_ARGUMENT
+TryExec=$INSTALL_DIR/electron/electron
+Icon=$INSTALL_DIR/assets/Zalo.png
 Terminal=false
 Type=Application
-Categories=Utility;
+Categories=Network;InstantMessaging;
+StartupWMClass=Zalo
 EOF
+chmod 0644 "$DESKTOP_TMP"
+mv -- "$DESKTOP_TMP" "$DESKTOP_FILE"
+DESKTOP_TMP=""
 
-# Step 4: Make scripts executable and update desktop database
-chmod +x "$DESKTOP_FILE"
-# chmod +x "$UNINSTALL_SCRIPT"
-chmod +x "$START_SCRIPT"
-update-desktop-database "$(dirname "$DESKTOP_FILE")" || true
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$APPLICATIONS_DIR" >/dev/null 2>&1 || true
+fi
 
-echo "$APP_NAME installed successfully!"
-
-echo "Virtual environment created at: $VENV_DIR"
+echo "$APP_NAME installed successfully in $INSTALL_DIR"
