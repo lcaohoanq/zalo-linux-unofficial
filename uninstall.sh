@@ -1,22 +1,22 @@
-#!/bin/bash
-# Exit on error
-set -e
+#!/usr/bin/env bash
 
-# If running in relocation mode
-if [[ "$1" == "--do-delete" ]]; then
-    rm -rf ~/.local/share/applications/Zalo.desktop \
-           ~/Desktop/Zalo.desktop \
-           /tmp/zalo-installer \
-           ~/.local/share/Zalo
+set -Eeuo pipefail
 
-    update-desktop-database ~/.local/share/applications || true
-    echo "Uninstall Zalo success."
-    exit 0
+APP_NAME="Zalo"
+INSTALL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+DATA_HOME="$(dirname -- "$INSTALL_DIR")"
+APPLICATIONS_DIR="$DATA_HOME/applications"
+DESKTOP_FILE="$APPLICATIONS_DIR/$APP_NAME.desktop"
+
+if [[ "$(basename -- "$INSTALL_DIR")" != "$APP_NAME" ]]; then
+    echo "Error: refusing to remove unexpected install directory: $INSTALL_DIR" >&2
+    exit 1
 fi
 
-# Relocate and run from a safe place
-TMP_SCRIPT="/tmp/zalo_uninstall.sh"
-cp "$0" "$TMP_SCRIPT"
-chmod +x "$TMP_SCRIPT"
-"$TMP_SCRIPT" --do-delete &
-exit 0
+rm -f -- "$DESKTOP_FILE"
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$APPLICATIONS_DIR" >/dev/null 2>&1 || true
+fi
+
+rm -rf -- "$INSTALL_DIR"
+echo "$APP_NAME uninstalled successfully. User data was preserved."

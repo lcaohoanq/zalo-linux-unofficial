@@ -2,6 +2,10 @@ const handleEntryCompactApp = () => {
   return require('./main-dist/compact-app');
 };
 
+const setupNativeTray = () => {
+  require('./native-tray').setup();
+};
+
 function bootstrap() {
   require('./libs/perf-tracing/runtime');
   perf.record(perf.STARTUP);
@@ -19,6 +23,7 @@ function bootstrap() {
   }
 
   if (require('electron').app.requestSingleInstanceLock()) {
+    setupNativeTray();
     perf.record(perf.MAIN_SCRIPT);
     require('./main-dist/main');
   } else {
