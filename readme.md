@@ -21,6 +21,17 @@ chmod +x Zalo-*-linux-x64.AppImage
 ./Zalo-*-linux-x64.AppImage
 ```
 
+If meet fuse error, install and run again 
+
+```bash
+sudo apt update
+sudo apt install libfuse2
+```
+
+<img width="1026" height="724" alt="image" src="https://github.com/user-attachments/assets/353f6a80-394b-4d0d-b080-6e34db6b9a11" />
+
+
+
 Or install the DEB package and its system dependencies:
 
 ```bash
