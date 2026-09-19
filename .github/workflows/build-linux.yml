@@ -2,11 +2,15 @@ name: Build Linux packages
 
 on:
   pull_request:
+    paths-ignore:
+      - 'readme.md'
   push:
     branches:
       - main
     tags:
       - 'v*'
+    paths-ignore:
+      - 'readme.md'
   workflow_dispatch:
 
 permissions:
